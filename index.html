@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Map Editor</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+  </style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+
+
+
+
+<script>
+
+  // ==========================================================
+  // CARTE
+  // ==========================================================
+
+  let map = L.map('map').setView(
+    [48.85, 2.35],
+    5
+  );
+
+
+  L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      maxZoom: 19
+    }
+  ).addTo(map);
+
+
+  // ==========================================================
+  // VARIABLES
+  // ==========================================================
+
+  let marker = null;
+
+  let currentRecord = null;
+
+  let tableId = null;
+
+  let hasCoords = false;
+
+
+
+
+  // ==========================================================
+  // GRIST
+  // ==========================================================
+
+  grist.ready({
+
+    requiredAccess: 'read',
+
+    columns: [
+
+      {
+        name: 'Label',
+        optional: true
+      },
+
+      {
+        name: 'Geometry',
+        type: 'Text',
+        optional: true,
+        description: 'Format WKT: POINT (lon lat)'
+      },
+
+      {
+        name: 'Latitude',
+        type: 'Numeric',
+        optional: true
+      },
+
+      {
+        name: 'Longitude',
+        type: 'Numeric',
+        optional: true
+      }
+
+    ]
+
+  });
+
+
+  // ==========================================================
+  // RECORD GRIST
+  // ==========================================================
+
+  grist.onRecord(function(record) {
+
+    console.log('onRecord');
+
+    if (!record) {
+
+      console.log('no current record');
+
+      return;
+    }
+
+
+    currentRecord = record;
+
+    tableId =
+      grist.getSelectedTableIdSync();
+
+
+    let lat;
+    let lon;
+
+
+    // ========================================================
+    // GEOMETRY EST LA SOURCE DE VERITE
+    // ========================================================
+
+    if (record.Geometry) {
+
+      const match =
+        record.Geometry.match(
+          /POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i
+        );
+
+
+      console.log(
+        'geom = ' + record.Geometry
+      );
+
+
+      if (match) {
+
+        lon =
+          parseFloat(match[1]);
+
+        lat =
+          parseFloat(match[2]);
+      }
+    }
+
+
+    // ========================================================
+    // AFFICHAGE DU MARQUEUR
+    // ========================================================
+
+    if (
+      Number.isFinite(lat) &&
+      Number.isFinite(lon)
+    ) {
+
+      hasCoords = true;
+
+
+      if (marker) {
+
+        marker.setLatLng(
+          [lat, lon]
+        );
+
+      } else {
+
+        marker =
+          createMarker(lat, lon);
+      }
+
+
+      marker.bindTooltip(
+        String(record.Label ?? "—")
+      );
+
+
+      map.setView(
+        [lat, lon],
+        15
+      );
+
+    } else {
+
+      hasCoords = false;
+
+
+      if (marker) {
+
+        map.removeLayer(marker);
+
+        marker = null;
+      }
+    }
+
+  });
+
+
+  // ==========================================================
+  // CREATION DU MARQUEUR
+  // ==========================================================
+
+  function createMarker(lat, lon) {
+
+    const m =
+      L.marker(
+        [lat, lon],
+        {
+          draggable: true
+        }
+      ).addTo(map);
+
+
+    m.on(
+      'dragend',
+      function(e) {
+
+        const pos =
+          e.target.getLatLng();
+
+
+        updateGrist(
+          pos.lat,
+          pos.lng
+        );
+
+      }
+    );
+
+
+    return m;
+  }
+
+
+
+    }
+  );
+
+
+
+
+
+
+    // ----------------------------------------------------------
+    // Création ou déplacement du marqueur
+    // ----------------------------------------------------------
+
+    if (marker) {
+
+      marker.setLatLng(
+        [lat, lon]
+      );
+
+    } else {
+
+      marker =
+        createMarker(
+          lat,
+          lon
+        );
+    }
+
+
+    hasCoords = true;
+
+
+
+
+
+    // ----------------------------------------------------------
+    // Centrage
+    // ----------------------------------------------------------
+
+    map.setView(
+      [lat, lon],
+      16
+    );
+
+
+
+ 
+</script>
+
+</body>
+</html>
